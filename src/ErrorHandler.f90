@@ -19,7 +19,8 @@ module ErrorHandlerModule
         logical                             :: printErrorCode = .false.     !! Should the error code be printed when errors triggered?
         logical                             :: triggerWarnings = .true.     !! Should warnings be printed on trigger?
         logical                             :: on = .true.                  !! Set to .false. to turn ErrorHandler output off
-        
+        integer                             :: lu = 6                       !! TODO: change to output_unit from iso_fortran_env ot something like that
+
         contains
             procedure, public :: init => initErrorHandler
             procedure, public :: queue
@@ -66,7 +67,8 @@ module ErrorHandlerModule
                         bashColors, &
                         printErrorCode, &
                         triggerWarnings, &
-                        on)
+                        on, &
+                        lu)
             class(ErrorHandler), intent(inout)          :: this                     !! This ErrorHandler instance
             type(ErrorInstance), intent(in), optional   :: errors(:)                !! List of ErrorInstances to add
             character(len=*), intent(in), optional      :: criticalPrefix           !! Prefix for error messages if they're critical
@@ -76,6 +78,7 @@ module ErrorHandlerModule
             logical, intent(in), optional               :: printErrorCode           !! Should the error code be prepended to the prefix?
             logical, intent(in), optional               :: triggerWarnings          !! Should warnings be printed on trigger?
             logical, intent(in), optional               :: on                       !! Turn the ErrorHandler on or off
+            integer, intent(in), optional               :: lu                       !! Logical unit of print_file
             integer                                     :: i                        ! Loop iterator.
             logical, allocatable                        :: mask(:)                  ! Logical mask to remove default errors from input errors array.
             type(ErrorInstance)                         :: defaultErrors(2)         ! Temporary array containing default errors.
@@ -151,6 +154,9 @@ module ErrorHandlerModule
 
             ! Set whether ErrorHandler output is on or off
             if (present(on)) this%on = on
+
+            ! Set logical unit of print file
+            if (present(lu)) this%lu = lu
         end subroutine
 
         !> Add an error to the list of possible errors,
@@ -159,7 +165,7 @@ module ErrorHandlerModule
             class(ErrorHandler)             :: this             !! Dummy argument
             integer, optional               :: code             !! Error code
             character(len=*), optional      :: message          !! Error message to be printed when handled
-            logical, optional               :: isCritical       !! Should program execution be stopped?   
+            logical, optional               :: isCritical       !! Should program execution be stopped?
             type(ErrorInstance), optional   :: error            !! ErrorInstance to add
             type(ErrorInstance)             :: errorOut         ! The new error
             integer                         :: i                ! Loop iterator
@@ -241,7 +247,7 @@ module ErrorHandlerModule
             do i=1, size(codes)
                 call this%addErrorInstance(codes(i), messages(i), areCritical(i))
             end do
-            
+
         end subroutine
 
         !> Add multiple error instances from an array of ErrorInstances.
@@ -265,7 +271,7 @@ module ErrorHandlerModule
             character(len=*), intent(in), optional  :: trace(:)     !! Modified error trace.
             integer                                 :: i            ! Loop iterator.
             logical                                 :: doesErrorExist ! Boolean to check if error exists.
-            
+
             doesErrorExist = .false.
             ! Loop through this%errors to see if the given code matches an existing one.
             ! Set message, criticality and trace if so.
@@ -300,14 +306,14 @@ module ErrorHandlerModule
                 write(*,"(a)") "Did you mean to use modify()?"
                 error stop 1
             end if
-            
+
             mask = .false.
             do i=1, size(this%errors)
                 if (this%errors(i)%code == code) then
                     mask(i) = .true.
                 end if
             end do
-            
+
             ! Use the logical mask to get remove the error
             this%errors = pack(this%errors, .not. mask)
         end subroutine
@@ -429,7 +435,7 @@ module ErrorHandlerModule
             integer, optional               :: code             !! Error code
             type(ErrorInstance), optional   :: error            !! ErrorInstance
             type(ErrorInstance), optional   :: errors(:)        !! Array of ErrorInstances
-            
+
             character(len=256)              :: messagePrefix    ! The message prefix (critical or warning)
             character(len=1000)             :: outputMessage    ! The full message to be output
             character(len=500)              :: traceMessage     ! The strack trace message
@@ -439,11 +445,11 @@ module ErrorHandlerModule
 
             ! Stop the program running is ErrorHandler not initialised
             call this%stopIfNotInitialised()
-            
+
             ! Only do something if the ErrorHandler is "on"
             if (this%on) then
 
-                ! Try find error from code, then singular error, then array of errors, 
+                ! Try find error from code, then singular error, then array of errors,
                 ! then finally, if not present, then set error to generic error. If
                 ! error code provided isn't valid, then no error returned. This is intentional.
                 if (present(code)) then
@@ -510,7 +516,7 @@ module ErrorHandlerModule
                 do i=1, size(errorsOut)
                     ! Check if error code > 0 and < 99999 also stops the program trying to
                     ! print out errors for elements of arrays that mightn't have
-                    ! been used (e.g., if the wrong size array was declared). Don't do 
+                    ! been used (e.g., if the wrong size array was declared). Don't do
                     ! anything if error code is zero.
                     if (errorsOut(i)%getCode() > 0 .and. errorsOut(i)%getCode() < 99999 &
                         .and. .not. (.not. this%triggerWarnings .and. .not. errorsOut(i)%isCritical)) then
@@ -542,13 +548,13 @@ module ErrorHandlerModule
                                                                 // "       >"
                             end do
 
-                            write(*,"(a)") new_line('A') // trim(outputMessage)
-                            write(*,"(a)") trim(adjustl(traceMessage))
+                            write(this%lu,"(a)") new_line('A') // trim(outputMessage)
+                            write(this%lu,"(a)") trim(adjustl(traceMessage))
                         else
-                            write(*,"(a)") new_line('A') // trim(outputMessage)
+                            write(this%lu,"(a)") new_line('A') // trim(outputMessage)
                         end if
-                        
-                        if (i == size(errorsOut)) write(*,"(a)") ! Finish messages with new line
+
+                        if (i == size(errorsOut)) write(this%lu,"(a)") ! Finish messages with new line
                     end if
                 end do
 
@@ -557,8 +563,8 @@ module ErrorHandlerModule
                 ! stop on the first critical error found.
                 do i=1, size(errorsOut)
                     if (errorsOut(i)%isCritical) then
-                        write(*,"(a)")                  ! New line
-                        error stop 1
+                        write(this%lu,"(a)")                  ! New line
+                        error stop "Error is occered, see log.out"
                     end if
                 end do
 

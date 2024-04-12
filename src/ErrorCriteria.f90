@@ -140,7 +140,8 @@ module ErrorCriteriaModule
                                      bashColors, &
                                      printErrorCode, &
                                      triggerWarnings, &
-                                     on)
+                                     on, &
+                                     lu)
             class(ErrorCriteria), intent(inout)         :: this                 !! This ErrorCriteria instance
             type(ErrorInstance), intent(in), optional   :: errors(:)            !! Custom defined errors
             character(len=*), intent(in), optional      :: criticalPrefix       !! Prefix to critical error messages
@@ -150,6 +151,7 @@ module ErrorCriteriaModule
             logical, intent(in), optional               :: printErrorCode       !! Should error messages be prefixed with the error code?
             logical, intent(in), optional               :: triggerWarnings      !! Should warnings be printing on trigger?
             logical, intent(in), optional               :: on                   !! Should the ErrorHandler output errors?
+            integer, intent(in), optional               :: lu                   !!
 
             ! Initialise the parent ErrorHandler                                                                    
             call this%ErrorHandler%init( &
@@ -160,7 +162,8 @@ module ErrorCriteriaModule
                 bashColors=bashColors, &
                 triggerWarnings=triggerWarnings, &
                 printErrorCode=printErrorCode, &
-                on=on &
+                on=on, &
+                lu=lu &
             )
 
             ! Define the default error criteria. Messages will be overidden by specific
